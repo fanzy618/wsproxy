@@ -1,24 +1,16 @@
-package main
+package client
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"net"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"wsproxy/common"
 
 	"github.com/gorilla/websocket"
 )
-
-var l = flag.String("l", "0.0.0.0:5004", "Local address")
-var r = flag.String("r", "127.0.0.1:3128", "Remote address")
-var s = flag.String("s", "ws://127.0.0.1:1443/proxy", "Server's address")
 
 // ProxyParement is the type of key in context
 type ProxyParement string
@@ -81,39 +73,42 @@ func proxy(ctx context.Context, tcpConn net.Conn) {
 	}
 }
 
-func main() {
-	flag.Parse()
-	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
+// Config is where configuration of client
+type Config struct {
+	LocalAddr       string
+	RemoteAddr      string
+	ServerAddr      string
+	InteractiveMode bool
+}
 
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM)
-
-	laddr, err := net.ResolveTCPAddr("tcp4", *l)
+// Main is the entry point of client
+func Main(ctx context.Context, cfg Config) {
+	laddr, err := net.ResolveTCPAddr("tcp4", cfg.LocalAddr)
 	if err != nil {
-		log.Printf("Listen on %s failed:%s\n", *l, err)
+		log.Printf("Listen on %s failed:%s\n", cfg.LocalAddr, err)
 		return
 	}
 
 	listener, err := net.ListenTCP("tcp4", laddr)
 	if err != nil {
-		log.Printf("Listen on %s failed:%s\n", *l, err)
+		log.Printf("Listen on %s failed:%s\n", cfg.LocalAddr, err)
 		return
 	}
 	defer listener.Close()
-	log.Println("Service listen on ", *l)
+	log.Println("Service listen on ", cfg.LocalAddr)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ctx = context.WithValue(ctx, ServiceAddr, *s)
-	ctx = context.WithValue(ctx, RemoteAddr, *r)
+	ctx = context.WithValue(ctx, ServiceAddr, cfg.ServerAddr)
+	ctx = context.WithValue(ctx, RemoteAddr, cfg.RemoteAddr)
 mainloop:
 	for {
 		listener.SetDeadline(time.Now().Add(time.Second))
 		conn, err := listener.Accept()
 		select {
-		case s := <-sc:
-			log.Println("Get signal ", s)
+		case <-ctx.Done():
+			log.Println("Client exist because ", ctx.Err())
 			break mainloop
 		default:
 			// make it non-block
@@ -128,6 +123,8 @@ mainloop:
 		if c, ok := conn.(*net.TCPConn); ok {
 			c.SetReadBuffer(common.BufferSize)
 			c.SetWriteBuffer(common.BufferSize)
+			c.SetKeepAlive(true)
+			c.SetKeepAlivePeriod(30 * time.Second)
 		}
 		go proxy(ctx, conn)
 	}

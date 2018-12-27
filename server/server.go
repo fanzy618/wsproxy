@@ -1,8 +1,7 @@
-package main
+package server
 
 import (
 	"context"
-	"flag"
 	"io"
 	"log"
 	"net"
@@ -105,20 +104,13 @@ func Proxy(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var a = flag.String("a", "0.0.0.0:1443", "websocket service address")
+// Config for server
+type Config struct {
+	WebSocketAddr string
+}
 
-var t = flag.Bool("t", false, "Enable echo server for test")
-var r = flag.String("r", "127.0.0.1:3128", "Remote address")
-
-func main() {
-	flag.Parse()
-	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
-
-	if *t {
-		go echoMain(*r)
-	}
-
+// Main is the entry point of server
+func Main(ctx context.Context, cfg Config) {
 	http.HandleFunc("/proxy", Proxy)
-	log.Println("Service start on ", *a)
-	log.Fatal(http.ListenAndServe(*a, nil))
+	log.Fatalln(http.ListenAndServe(cfg.WebSocketAddr, nil))
 }
