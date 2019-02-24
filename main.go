@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"wsproxy/client"
-	"wsproxy/server"
+	"github.com/fanzy618/wsproxy/client"
+	"github.com/fanzy618/wsproxy/server"
 )
 
 // client side flags

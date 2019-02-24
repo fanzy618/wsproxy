@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"wsproxy/common"
+	"github.com/fanzy618/wsproxy/common"
 
 	"github.com/gorilla/websocket"
 )

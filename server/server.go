@@ -9,7 +9,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"wsproxy/common"
+	"github.com/fanzy618/wsproxy/common"
 )
 
 func echo(ctx context.Context, conn net.Conn) {
