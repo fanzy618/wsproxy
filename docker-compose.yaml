@@ -1,0 +1,23 @@
+version: "2"
+
+services:
+    client:
+        image: wsproxy:latest
+        environment:
+            TYPE: client
+            LADDR: :5004
+            RADDR: 127.0.0.1:3128
+            SADDR: ${SRV_ADDR}
+        ports:
+        - "5004:5004"
+        restart: always
+    
+    server:
+        image: wsproxy:latest
+        network_mode: "host"
+        environment:
+            TYPE: server
+            WS_ADDR: 127.0.0.1:1443
+        ports:
+        - "1443:1443"
+        restart: always
