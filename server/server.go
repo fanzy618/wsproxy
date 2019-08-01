@@ -107,10 +107,17 @@ func Proxy(w http.ResponseWriter, r *http.Request) {
 // Config for server
 type Config struct {
 	WebSocketAddr string
+	QuicAddr      string
+}
+
+// OK return string "OK" for test and health check
+func OK(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("OK"))
 }
 
 // Main is the entry point of server
 func Main(ctx context.Context, cfg Config) {
 	http.HandleFunc("/proxy", Proxy)
+	http.HandleFunc("/", OK)
 	log.Fatalln(http.ListenAndServe(cfg.WebSocketAddr, nil))
 }
