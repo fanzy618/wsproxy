@@ -1,4 +1,4 @@
-FROM golang:1.12-alpine
+FROM golang:1.13-alpine
 
 
 RUN apk add --no-cache upx
@@ -16,7 +16,7 @@ RUN apk add --no-cache ca-certificates
 
 WORKDIR /wsproxy
 EXPOSE 1443 5004
-ENTRYPOINT ["/wsproxy/run.sh"]
+ENTRYPOINT ["/bin/sh"]
 CMD ["/wsproxy/wsproxy"]
 
-COPY --from=0 /wsproxy /go/src/github.com/fanzy618/wsproxy/run.sh ./
+COPY --from=0 /wsproxy ./

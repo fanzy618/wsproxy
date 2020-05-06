@@ -2,7 +2,10 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"time"
@@ -60,6 +63,13 @@ func proxy(ctx context.Context, tcpConn net.Conn) {
 		return
 	}
 	defer wsConn.Close()
+	conn := wsConn.UnderlyingConn()
+	if c, ok := conn.(*net.TCPConn); ok {
+		c.SetReadBuffer(common.BufferSize)
+		c.SetWriteBuffer(common.BufferSize)
+		c.SetKeepAlive(true)
+		c.SetKeepAlivePeriod(30 * time.Second)
+	}
 	ctx, cancel := context.WithCancel(ctx)
 
 	go common.Ws2Tcp(ctx, cancel, wsConn, tcpConn)
@@ -79,6 +89,8 @@ type Config struct {
 	RemoteAddr      string
 	ServerAddr      string
 	InteractiveMode bool
+	SkipVerify      bool
+	RootCA          string
 }
 
 // Main is the entry point of client
@@ -96,6 +108,22 @@ func Main(ctx context.Context, cfg Config) {
 	}
 	defer listener.Close()
 	log.Println("Service listen on ", cfg.LocalAddr)
+	if cfg.RootCA != "" || cfg.SkipVerify {
+		var caCertPool *x509.CertPool
+		if cfg.RootCA != "" {
+			clientCA, err := ioutil.ReadFile(cfg.RootCA)
+			if err != nil {
+				log.Fatal(err)
+			}
+			caCertPool = x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(clientCA)
+		}
+
+		dialer.TLSClientConfig = &tls.Config{
+			RootCAs:            caCertPool,
+			InsecureSkipVerify: cfg.SkipVerify,
+		}
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

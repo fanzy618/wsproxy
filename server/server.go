@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
-	"io"
+	"crypto/tls"
+	"crypto/x509"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -12,53 +14,13 @@ import (
 	"github.com/fanzy618/wsproxy/common"
 )
 
-func echo(ctx context.Context, conn net.Conn) {
-	defer conn.Close()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			_, err := io.Copy(conn, conn)
-			if err != nil {
-				log.Println("echo: ", err)
-				return
-			}
-		}
-	}
-}
-
-func echoMain(addr string) {
-	laddr, err := net.ResolveTCPAddr("tcp4", addr)
-	if err != nil {
-		log.Printf("Echo listen on %s failed:%s\n", addr, err)
-		return
-	}
-
-	listener, err := net.ListenTCP("tcp4", laddr)
-	if err != nil {
-		log.Printf("Listen on %s failed:%s\n", addr, err)
-		return
-	}
-	defer listener.Close()
-	log.Println("Service listen on ", addr)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Println("echo accpet failed: ", err)
-			continue
-		}
-		go echo(ctx, conn)
-	}
-}
-
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  common.BufferSize,
 	WriteBufferSize: common.BufferSize,
 }
+
+const echoAddr = "127.0.0.1:11234"
+const proxyAddr = "127.0.0.1:13128"
 
 // Proxy handle URL like "/proxy?des=127.0.0.1:3128"
 func Proxy(w http.ResponseWriter, r *http.Request) {
@@ -74,6 +36,12 @@ func Proxy(w http.ResponseWriter, r *http.Request) {
 	defer log.Println("Close request ", r.URL.String())
 
 	dst := r.URL.Query().Get("dst")
+	if dst == "echo" || dst == "" {
+		dst = echoAddr
+	}
+	if dst == "proxy" {
+		dst = proxyAddr
+	}
 	addr, err := net.ResolveTCPAddr("tcp4", dst)
 	if err != nil {
 		log.Println("Resolve ", dst, " failed: ", err.Error())
@@ -108,6 +76,12 @@ func Proxy(w http.ResponseWriter, r *http.Request) {
 type Config struct {
 	WebSocketAddr string
 	QuicAddr      string
+	ServerKey     string
+	ServerCA      string
+	RootCA        string
+
+	ProxyEnable bool
+	EchoEnable  bool
 }
 
 // OK return string "OK" for test and health check
@@ -117,7 +91,42 @@ func OK(w http.ResponseWriter, r *http.Request) {
 
 // Main is the entry point of server
 func Main(ctx context.Context, cfg Config) {
+	if cfg.EchoEnable {
+		go echoMain(ctx, echoAddr)
+	}
+	if cfg.ProxyEnable {
+		go ProxyMain(ctx, proxyAddr)
+	}
+
 	http.HandleFunc("/proxy", Proxy)
 	http.HandleFunc("/", OK)
+
+	if cfg.ServerCA != "" && cfg.ServerKey != "" {
+		var server *http.Server
+		var tlsCfg *tls.Config
+		if cfg.RootCA != "" {
+			clientCA, err := ioutil.ReadFile(cfg.RootCA)
+			if err != nil {
+				log.Fatal(err)
+			}
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(clientCA)
+			tlsCfg = &tls.Config{
+				ClientAuth: tls.RequireAndVerifyClientCert,
+				ClientCAs:  caCertPool,
+			}
+		}
+		addr := cfg.WebSocketAddr
+		if addr == "" {
+			addr = ":443"
+		}
+		server = &http.Server{
+			Addr:      cfg.WebSocketAddr,
+			TLSConfig: tlsCfg,
+		}
+		log.Fatalln(server.ListenAndServeTLS(cfg.ServerCA, cfg.ServerKey))
+		return
+	}
+
 	log.Fatalln(http.ListenAndServe(cfg.WebSocketAddr, nil))
 }

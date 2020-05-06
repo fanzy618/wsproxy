@@ -12,16 +12,22 @@ import (
 	"github.com/fanzy618/wsproxy/server"
 )
 
+// common flags
+var role = flag.String("role", "server", "server | client")
+var rootCA = flag.String("root-ca", "", "Root CA file")
+
 // client side flags
-var l = flag.String("l", "0.0.0.0:5004", "Local address")
+var l = flag.String("l", "0.0.0.0:80", "Local address")
 var r = flag.String("r", "127.0.0.1:3128", "Remote address")
 var s = flag.String("s", "ws://127.0.0.1:1443/proxy", "Server's address")
 var i = flag.Bool("i", false, "Use stdin as input and write output to stdout")
+var skipVerify = flag.Bool("k", false, "Insecury skip server ca verify")
 
 // server side flags
-var a = flag.String("a", "0.0.0.0:1443", "websocket service address")
-
-var role = flag.String("role", "server", "server | client")
+var a = flag.String("a", "0.0.0.0:443", "websocket service address")
+var serverKey = flag.String("server-key", "", "Server's CA key")
+var serverCA = flag.String("server-ca", "", "Server's CA file")
+var proxy = flag.Bool("proxy", false, "Enable a proxy server")
 
 func main() {
 	flag.Parse()
@@ -37,14 +43,19 @@ func main() {
 	case "server":
 		cfg := server.Config{
 			WebSocketAddr: *a,
+			ServerKey:     *serverKey,
+			ServerCA:      *serverCA,
+			RootCA:        *rootCA,
+			ProxyEnable: *proxy,
 		}
 		go server.Main(ctx, cfg)
 	case "client":
 		cfg := client.Config{
-			LocalAddr:       *l,
-			RemoteAddr:      *r,
-			ServerAddr:      *s,
-			InteractiveMode: *i,
+			LocalAddr:  *l,
+			RemoteAddr: *r,
+			ServerAddr: *s,
+			SkipVerify: *skipVerify,
+			RootCA:     *rootCA,
 		}
 		go client.Main(ctx, cfg)
 	default:
