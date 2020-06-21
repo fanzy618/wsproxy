@@ -1,0 +1,26 @@
+FROM golang:1.14-alpine
+
+
+RUN apk add --no-cache upx
+
+WORKDIR /go/src
+RUN mkdir -p /go/src/github.com/fanzy618/wsproxy
+COPY . /go/src/github.com/fanzy618/wsproxy/
+
+RUN go build -ldflags "-w -s" -v -o /wsproxy github.com/fanzy618/wsproxy && \
+    upx /wsproxy
+
+
+FROM alpine:3.12
+RUN apk add --no-cache ca-certificates
+
+WORKDIR /wsproxy
+EXPOSE 443 5004
+
+CMD [   \
+    "/wsproxy/wsproxy", \
+    "-server-key=key.pem", \
+    "-server-ca=cert.pem" \
+]
+
+COPY --from=0 /wsproxy ./

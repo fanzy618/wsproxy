@@ -20,7 +20,6 @@ var upgrader = websocket.Upgrader{
 }
 
 const echoAddr = "127.0.0.1:11234"
-const proxyAddr = "127.0.0.1:13128"
 
 // Proxy handle URL like "/proxy?des=127.0.0.1:3128"
 func Proxy(w http.ResponseWriter, r *http.Request) {
@@ -39,9 +38,7 @@ func Proxy(w http.ResponseWriter, r *http.Request) {
 	if dst == "echo" || dst == "" {
 		dst = echoAddr
 	}
-	if dst == "proxy" {
-		dst = proxyAddr
-	}
+
 	addr, err := net.ResolveTCPAddr("tcp4", dst)
 	if err != nil {
 		log.Println("Resolve ", dst, " failed: ", err.Error())
@@ -93,9 +90,6 @@ func OK(w http.ResponseWriter, r *http.Request) {
 func Main(ctx context.Context, cfg Config) {
 	if cfg.EchoEnable {
 		go echoMain(ctx, echoAddr)
-	}
-	if cfg.ProxyEnable {
-		go ProxyMain(ctx, proxyAddr)
 	}
 
 	http.HandleFunc("/proxy", Proxy)

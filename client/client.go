@@ -91,24 +91,28 @@ type Config struct {
 	InteractiveMode bool
 	SkipVerify      bool
 	RootCA          string
+	Cert            string
+	Key             string
 }
 
 // Main is the entry point of client
 func Main(ctx context.Context, cfg Config) {
-	laddr, err := net.ResolveTCPAddr("tcp4", cfg.LocalAddr)
-	if err != nil {
-		log.Printf("Listen on %s failed:%s\n", cfg.LocalAddr, err)
-		return
-	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	listener, err := net.ListenTCP("tcp4", laddr)
+	ctx = context.WithValue(ctx, ServiceAddr, cfg.ServerAddr)
+	ctx = context.WithValue(ctx, RemoteAddr, cfg.RemoteAddr)
+
+	lc := new(net.ListenConfig)
+	listener, err := lc.Listen(ctx, "tcp4", cfg.LocalAddr)
 	if err != nil {
 		log.Printf("Listen on %s failed:%s\n", cfg.LocalAddr, err)
 		return
 	}
 	defer listener.Close()
 	log.Println("Service listen on ", cfg.LocalAddr)
-	if cfg.RootCA != "" || cfg.SkipVerify {
+
+	if cfg.RootCA != "" {
 		var caCertPool *x509.CertPool
 		if cfg.RootCA != "" {
 			clientCA, err := ioutil.ReadFile(cfg.RootCA)
@@ -118,21 +122,20 @@ func Main(ctx context.Context, cfg Config) {
 			caCertPool = x509.NewCertPool()
 			caCertPool.AppendCertsFromPEM(clientCA)
 		}
-
+		clientCert, err := tls.LoadX509KeyPair(cfg.Cert, cfg.Key)
+		if err != nil {
+			log.Printf("Listen on %s failed:%s\n", cfg.LocalAddr, err)
+			return
+		}
 		dialer.TLSClientConfig = &tls.Config{
 			RootCAs:            caCertPool,
 			InsecureSkipVerify: cfg.SkipVerify,
+			Certificates:       []tls.Certificate{clientCert},
 		}
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	ctx = context.WithValue(ctx, ServiceAddr, cfg.ServerAddr)
-	ctx = context.WithValue(ctx, RemoteAddr, cfg.RemoteAddr)
 mainloop:
 	for {
-		listener.SetDeadline(time.Now().Add(time.Second))
 		conn, err := listener.Accept()
 		select {
 		case <-ctx.Done():

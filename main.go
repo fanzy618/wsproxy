@@ -15,9 +15,11 @@ import (
 // common flags
 var role = flag.String("role", "server", "server | client")
 var rootCA = flag.String("root-ca", "", "Root CA file")
+var key = flag.String("key", "", "Private key for HTTPS")
+var cert = flag.String("cert", "", "Certificate file for HTTP")
 
 // client side flags
-var l = flag.String("l", "0.0.0.0:80", "Local address")
+var l = flag.String("l", ":5004", "Local address")
 var r = flag.String("r", "127.0.0.1:3128", "Remote address")
 var s = flag.String("s", "ws://127.0.0.1:1443/proxy", "Server's address")
 var i = flag.Bool("i", false, "Use stdin as input and write output to stdout")
@@ -25,8 +27,7 @@ var skipVerify = flag.Bool("k", false, "Insecury skip server ca verify")
 
 // server side flags
 var a = flag.String("a", "0.0.0.0:443", "websocket service address")
-var serverKey = flag.String("server-key", "", "Server's CA key")
-var serverCA = flag.String("server-ca", "", "Server's CA file")
+
 var proxy = flag.Bool("proxy", false, "Enable a proxy server")
 
 func main() {
@@ -43,10 +44,10 @@ func main() {
 	case "server":
 		cfg := server.Config{
 			WebSocketAddr: *a,
-			ServerKey:     *serverKey,
-			ServerCA:      *serverCA,
+			ServerKey:     *key,
+			ServerCA:      *cert,
 			RootCA:        *rootCA,
-			ProxyEnable: *proxy,
+			ProxyEnable:   *proxy,
 		}
 		go server.Main(ctx, cfg)
 	case "client":
@@ -56,6 +57,8 @@ func main() {
 			ServerAddr: *s,
 			SkipVerify: *skipVerify,
 			RootCA:     *rootCA,
+			Cert:       *cert,
+			Key:        *key,
 		}
 		go client.Main(ctx, cfg)
 	default:
